@@ -1,0 +1,13 @@
+services:
+  bot:
+    build: .
+    container_name: lead-intake-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data
+      # Ключ сервис-аккаунта (раскомментируйте и укажите
+      # GOOGLE_SERVICE_ACCOUNT_JSON=/app/secrets/service-account.json)
+      # - ./secrets:/app/secrets:ro

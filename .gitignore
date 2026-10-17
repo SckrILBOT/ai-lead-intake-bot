@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+leads_backup*.json
+*service-account*.json
+credentials*.json
+START.md

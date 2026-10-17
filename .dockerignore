@@ -1,0 +1,12 @@
+.env
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+data
+tests
+leads_backup*.json
+*service-account*.json
+credentials*.json
+*.md
+!README.md
