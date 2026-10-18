@@ -1,6 +1,6 @@
 # 🤖 AI Lead Intake & Triage Bot
 
-Telegram-бот на базе Gemini, который **сам ведёт диалог с клиентом, квалифицирует лид и передаёт готовую заявку менеджеру** — в Google Sheets и на почту.
+Telegram-бот на базе Gemini, который **сам ведёт диалог с клиентом, квалифицирует лид и передаёт готовую заявку менеджеру** — в Google Sheets.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![aiogram](https://img.shields.io/badge/aiogram-3.x-2CA5E0?logo=telegram&logoColor=white)
