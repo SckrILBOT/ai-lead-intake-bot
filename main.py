@@ -15,6 +15,7 @@ from services.email_service import EmailService
 from services.lead_dispatcher import BackupStorage, LeadDispatcher
 from services.llm_service import LLMService
 from services.sheets_service import SheetsService
+from services.speechkit_service import SpeechKitService
 
 logger = logging.getLogger("lead_bot")
 
@@ -62,9 +63,14 @@ async def main() -> None:
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher(
         db=db,
-        llm=LLMService.from_api_key(
-            settings.gemini_api_key, settings.gemini_model, settings.llm_max_retries
+        llm=LLMService.from_settings(
+            settings.yandex_api_key,
+            settings.yandex_folder_id,
+            settings.yandex_model,
+            settings.llm_max_retries,
+            settings.yandex_api_mode,
         ),
+        stt=SpeechKitService(settings.yandex_api_key),
         dispatcher=build_dispatcher_service(settings),
         settings=settings,
     )
@@ -77,7 +83,7 @@ async def main() -> None:
             BotCommand(command="reset", description="Очистить контекст"),
         ]
     )
-    logger.info("Bot started, model: %s", settings.gemini_model)
+    logger.info("Bot started, model: %s (%s API)", settings.yandex_model, settings.yandex_api_mode)
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

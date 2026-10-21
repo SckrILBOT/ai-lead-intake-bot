@@ -60,7 +60,7 @@ class Database:
     async def get_history(self, user_id: int) -> list[tuple[str, str]]:
         """Return up to N last messages as (role, content), oldest first.
 
-        Gemini requires the history to start with a user turn, so a leading
+        Chat APIs expect the history to start with a user turn, so a leading
         model message (left after trimming) is dropped.
         """
         async with self.conn.execute(

@@ -1,5 +1,7 @@
 # ТЗ: AI Lead Intake & Triage Bot
 
+> **Важно:** исходное ТЗ писалось под Google Gemini. Сейчас LLM — **DeepSeek V4.1 Flash через Yandex AI Studio** (OpenAI-совместимый API), голос — Yandex SpeechKit. Gemini-разделы ниже оставлены как история решений; актуальные настройки см. в `README.md` и `.env.example`.
+
 Production-ready Telegram-бот на Python для портфолио AI-разработчика.
 
 ## 1. Легенда

@@ -1,4 +1,4 @@
-"""End-to-end dialog flow with fake Telegram message and fake Gemini."""
+"""End-to-end dialog flow with fake Telegram message and fake LLM."""
 
 from types import SimpleNamespace
 
@@ -27,18 +27,21 @@ class FakeMessage:
         self.answers.append((text, reply_markup))
 
 
-async def test_dialog_submits_once_then_consults(db, tmp_path):
-    client, models = fake_client(
+async def test_dialog_submits_once_then_consults(db, tmp_path, api):
+    client, endpoint = fake_client(
         [
             text_response("Расскажите о задаче?"),
             call_response("submit_lead", VALID_LEAD),
             text_response("Пожалуйста! Обращайтесь."),
-        ]
+        ],
+        api,
     )
-    settings = Settings(telegram_bot_token="t", gemini_api_key="k", data_dir=tmp_path)
+    settings = Settings(
+        telegram_bot_token="t", yandex_api_key="k", yandex_folder_id="f", data_dir=tmp_path
+    )
     deps = dict(
         db=db,
-        llm=LLMService(client, "m"),
+        llm=LLMService(client, "m", api=api),
         dispatcher=LeadDispatcher(BackupStorage(settings.backup_path)),
         settings=settings,
     )
@@ -53,7 +56,7 @@ async def test_dialog_submits_once_then_consults(db, tmp_path):
     assert msg.answers[1][1] is not None  # «Новая заявка» button
     assert await db.get_status(7) == "completed"
     # third turn: tool is not offered -> no duplicate lead
-    assert not models.calls[2]["config"].tools
+    assert not endpoint.calls[2].get("tools")
     assert settings.backup_path.exists()
     assert settings.backup_path.read_text(encoding="utf-8").count('"client_name"') == 1
 
@@ -61,7 +64,8 @@ async def test_dialog_submits_once_then_consults(db, tmp_path):
 def test_settings_treat_empty_as_unset():
     s = Settings(
         telegram_bot_token="t",
-        gemini_api_key="k",
+        yandex_api_key="k",
+        yandex_folder_id="f",
         spreadsheet_id="",
         google_service_account_json="  ",
         smtp_host="",
@@ -69,7 +73,9 @@ def test_settings_treat_empty_as_unset():
     )
     assert not s.sheets_enabled and not s.email_enabled
     assert s.smtp_port == 587
-    assert s.gemini_model == "gemini-3.5-flash"
+    assert s.yandex_model == "deepseek-v4.1-flash"
+    assert s.yandex_api_mode == "responses"
+    assert s.voice_max_seconds == 30
 
 
 def test_split_text():

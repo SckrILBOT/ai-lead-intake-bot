@@ -1,36 +1,52 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from google.genai import types
 
 from database.db import Database
 
 
-def text_response(text: str) -> types.GenerateContentResponse:
-    return types.GenerateContentResponse(
-        candidates=[
-            types.Candidate(
-                content=types.Content(role="model", parts=[types.Part.from_text(text=text)])
-            )
-        ]
-    )
+@dataclass
+class Reply:
+    """What the fake model answers: text and/or a function call."""
+
+    text: str = ""
+    call: tuple[str, str] | None = None  # (name, raw JSON arguments)
 
 
-def call_response(name: str, args: dict) -> types.GenerateContentResponse:
-    return types.GenerateContentResponse(
-        candidates=[
-            types.Candidate(
-                content=types.Content(
-                    role="model",
-                    parts=[types.Part(function_call=types.FunctionCall(name=name, args=args))],
-                )
+def text_response(text: str) -> Reply:
+    return Reply(text=text)
+
+
+def call_response(name: str, args: dict) -> Reply:
+    return Reply(call=(name, json.dumps(args, ensure_ascii=False)))
+
+
+def _responses_shape(reply: Reply) -> Any:
+    output = []
+    if reply.call:
+        output.append(
+            SimpleNamespace(
+                type="function_call", call_id="call_1", name=reply.call[0], arguments=reply.call[1]
             )
-        ]
-    )
+        )
+    if reply.text:
+        part = SimpleNamespace(type="output_text", text=reply.text)
+        output.append(SimpleNamespace(type="message", content=[part]))
+    return SimpleNamespace(output=output)
+
+
+def _chat_shape(reply: Reply) -> Any:
+    tool_calls = None
+    if reply.call:
+        fn = SimpleNamespace(name=reply.call[0], arguments=reply.call[1])
+        tool_calls = [SimpleNamespace(id="call_1", function=fn)]
+    message = SimpleNamespace(content=reply.text or None, tool_calls=tool_calls)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 VALID_LEAD = {
@@ -45,23 +61,33 @@ VALID_LEAD = {
 
 
 @dataclass
-class FakeModels:
-    """Stands in for client.aio.models; returns queued responses in order."""
+class FakeEndpoint:
+    """Stands in for client.responses / client.chat.completions; pops queued replies."""
 
-    responses: list[Any]
+    queue: list[Any]
+    shape: Any
     calls: list[dict] = field(default_factory=list)
 
-    async def generate_content(self, *, model, contents, config):
-        self.calls.append({"model": model, "contents": list(contents), "config": config})
-        item = self.responses.pop(0)
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        item = self.queue.pop(0)
         if isinstance(item, Exception):
             raise item
-        return item
+        return self.shape(item)
 
 
-def fake_client(responses: list[Any]) -> tuple[Any, FakeModels]:
-    models = FakeModels(responses)
-    return SimpleNamespace(aio=SimpleNamespace(models=models)), models
+def fake_client(replies: list[Any], api: str = "responses") -> tuple[Any, FakeEndpoint]:
+    """Returns (client, endpoint) where endpoint records the kwargs of every call."""
+    if api == "responses":
+        endpoint = FakeEndpoint(replies, _responses_shape)
+        return SimpleNamespace(responses=endpoint), endpoint
+    endpoint = FakeEndpoint(replies, _chat_shape)
+    return SimpleNamespace(chat=SimpleNamespace(completions=endpoint)), endpoint
+
+
+@pytest.fixture(params=["responses", "chat"])
+def api(request) -> str:
+    return request.param
 
 
 @pytest.fixture

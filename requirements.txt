@@ -1,5 +1,6 @@
 aiogram>=3.13,<4
-google-genai>=1.0
+openai>=1.60
+aiohttp>=3.9
 pydantic>=2.7,<3
 pydantic-settings>=2.3
 aiosqlite>=0.20

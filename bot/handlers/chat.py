@@ -17,6 +17,7 @@ from database.db import Database
 from schemas.lead import Lead
 from services.lead_dispatcher import LeadDispatcher
 from services.llm_service import LLMService, UserMeta
+from services.speechkit_service import SpeechKitService
 
 logger = logging.getLogger(__name__)
 router = Router(name="chat")
@@ -153,6 +154,7 @@ async def on_voice(
     bot: Bot,
     db: Database,
     llm: LLMService,
+    stt: SpeechKitService,
     dispatcher: LeadDispatcher,
     settings: Settings,
 ) -> None:
@@ -160,7 +162,7 @@ async def on_voice(
     if voice.duration > settings.voice_max_seconds:
         await message.answer(
             f"🎤 Голосовое слишком длинное. Пожалуйста, уложитесь в "
-            f"{settings.voice_max_seconds // 60} мин или напишите текстом."
+            f"{settings.voice_max_seconds} сек. или напишите текстом."
         )
         return
 
@@ -168,9 +170,7 @@ async def on_voice(
         async with ChatActionSender.record_voice(bot=bot, chat_id=message.chat.id):
             buffer = io.BytesIO()
             await bot.download(voice, destination=buffer)
-            transcript = await llm.transcribe(
-                buffer.getvalue(), mime_type=voice.mime_type or "audio/ogg"
-            )
+            transcript = await stt.transcribe(buffer.getvalue())
     except Exception:  # noqa: BLE001
         logger.exception("Voice processing failed for user %s", message.from_user.id)
         await message.answer(ERROR_REPLY)

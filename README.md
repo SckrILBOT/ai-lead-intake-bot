@@ -1,10 +1,10 @@
 # 🤖 AI Lead Intake & Triage Bot
 
-Telegram-бот на базе Gemini, который **сам ведёт диалог с клиентом, квалифицирует лид и передаёт готовую заявку менеджеру** — в Google Sheets.
+Telegram-бот на базе DeepSeek V4.1 (Yandex AI Studio), который **сам ведёт диалог с клиентом, квалифицирует лид и передаёт готовую заявку менеджеру** — в Google Sheets.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![aiogram](https://img.shields.io/badge/aiogram-3.x-2CA5E0?logo=telegram&logoColor=white)
-![Gemini](https://img.shields.io/badge/Google_Gemini-google--genai-4285F4?logo=google&logoColor=white)
+![Yandex AI Studio](https://img.shields.io/badge/Yandex_AI_Studio-DeepSeek_V4.1-FC3F1D?logo=yandexcloud&logoColor=white)
 ![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 
@@ -44,10 +44,10 @@ Telegram-бот на базе Gemini, который **сам ведёт диа�
 
 | Функция | Как реализовано |
 |---|---|
-| Естественный диалог | Gemini + системный промпт консультанта, история в SQLite (последние 15 сообщений) |
+| Естественный диалог | DeepSeek V4.1 Flash через Yandex AI Studio + системный промпт консультанта, история в SQLite (последние 15 сообщений) |
 | Структурированная заявка | **Function Calling**: модель вызывает `submit_lead`, аргументы валидируются Pydantic-схемой |
-| Самокоррекция | Невалидные аргументы возвращаются модели как `function_response` с ошибкой — она дозадаёт вопрос |
-| Голосовые сообщения | Нативное аудио в Gemini (`audio/ogg`): транскрипция → обычный диалог |
+| Самокоррекция | Невалидные аргументы возвращаются модели как результат функции с ошибкой — она дозадаёт вопрос |
+| Голосовые сообщения | Yandex SpeechKit (`oggopus`, до 30 сек.): транскрипция → обычный диалог |
 | Lead Scoring | Рубрика в промпте; просьбы клиента «поставь High» игнорируются |
 | Google Sheets | `gspread` в `asyncio.to_thread`, автосоздание заголовков, запись `RAW` (защита от формул) |
 | Email | `aiosmtplib`, HTML-карточка + plain-text, приоритет в теме письма, экранирование данных |
@@ -62,13 +62,13 @@ Telegram ──► aiogram Router ──► ThrottlingMiddleware
                                   │
                        handlers/chat.py (per-user lock)
                          │            │
-            голос ──► LLMService.transcribe()      SQLite (история, статус сессии)
+            голос ──► SpeechKit (STT)                 SQLite (история, статус сессии)
                          │
-                   LLMService.chat()  ──► Gemini (tools: submit_lead)
+                   LLMService.chat()  ──► DeepSeek V4.1 (tools: submit_lead)
                          │
                  submit_lead? ── нет ──► ответ клиенту
                          │ да
-                 Pydantic-валидация ── ошибка ──► function_response → Gemini
+                 Pydantic-валидация ── ошибка ──► ответ-ошибка → модель
                          │ ок
                   LeadDispatcher ──┬──► Google Sheets
                                    ├──► Email (SMTP)
@@ -81,30 +81,31 @@ Telegram ──► aiogram Router ──► ThrottlingMiddleware
 │   ├── middlewares/     # throttling
 │   └── keyboards.py
 ├── services/
-│   ├── llm_service.py       # Gemini: диалог, tool calling, транскрипция
+│   ├── llm_service.py       # Yandex AI Studio (OpenAI API): диалог, tool calling
+│   ├── speechkit_service.py # распознавание голоса (SpeechKit)
 │   ├── sheets_service.py    # Google Sheets
 │   ├── email_service.py     # HTML-письмо
 │   └── lead_dispatcher.py   # рассылка по каналам + fallback
 ├── database/db.py       # aiosqlite
 ├── schemas/lead.py      # Pydantic-модели заявки
-├── scripts/list_models.py   # список доступных моделей Gemini
-├── tests/               # офлайн-тесты с моком Gemini
+├── scripts/check_llm.py     # проверка ключа, модели и вызова функций
+├── tests/               # офлайн-тесты с моком LLM
 ├── config.py  main.py
 └── Dockerfile  docker-compose.yml
 ```
 
 ## 🧰 Стек
 
-Python 3.11+ · aiogram 3 · google-genai (Gemini) · Pydantic v2 · pydantic-settings · aiosqlite · gspread + google-auth · aiosmtplib · Docker · pytest
+Python 3.11+ · aiogram 3 · openai SDK (Yandex AI Studio, DeepSeek V4.1) · Yandex SpeechKit · Pydantic v2 · pydantic-settings · aiosqlite · gspread + google-auth · aiosmtplib · Docker · pytest
 
 ## 🚀 Быстрый старт
 
-Для первого запуска нужны **только два ключа** — Sheets и почта необязательны (бот работает в mock-режиме).
+Для первого запуска нужны **токен Telegram и ключ Yandex Cloud** — Sheets и почта необязательны (бот работает в mock-режиме).
 
 ### 1. Получите ключи
 
 - **Telegram:** напишите [@BotFather](https://t.me/BotFather) → `/newbot` → скопируйте токен.
-- **Gemini:** [Google AI Studio](https://aistudio.google.com) → **Get API key** → **Create API key**.
+- **Yandex Cloud:** зарегистрируйтесь в [Yandex Cloud](https://cloud.yandex.ru), привяжите платёжный аккаунт и скопируйте **ID каталога**. Создайте **сервисный аккаунт** с ролями `ai.languageModels.user` и `ai.speechkit-stt.user` и **API-ключ** для него (секрет показывается один раз). Откройте [Yandex AI Studio](https://aistudio.yandex.ru) и примите условия.
 
 ### 2. Установка (Windows PowerShell)
 
@@ -121,7 +122,8 @@ Linux / macOS: `python3 -m venv .venv && source .venv/bin/activate && pip instal
 
 ```env
 TELEGRAM_BOT_TOKEN=123456:ABC...
-GEMINI_API_KEY=ваш_ключ
+YANDEX_API_KEY=ваш_ключ
+YANDEX_FOLDER_ID=ID_каталога
 ```
 
 ### 4. Запуск
@@ -132,15 +134,15 @@ python main.py
 
 Откройте бота в Telegram и отправьте `/start`.
 
-### Выбор модели
+### Выбор модели и проверка
 
-По умолчанию — `gemini-3.5-flash`. Посмотреть модели, доступные вашему ключу:
+По умолчанию — `deepseek-v4.1-flash` из каталога Yandex AI Studio. Другую модель укажите в `YANDEX_MODEL` (имя или полный URI `gpt://<каталог>/<модель>`). Проверить ключ, модель и вызов функций:
 
 ```powershell
-python scripts/list_models.py
+python scripts/check_llm.py
 ```
 
-и указать нужную в `GEMINI_MODEL`. Некоторые модели требуют включённого биллинга в AI Studio (на бесплатном тарифе вернут `429`).
+Скрипт пробует оба OpenAI-совместимых endpoint'а и подсказывает значение `YANDEX_API_MODE` (`responses` или `chat`).
 
 ## 🐳 Docker
 
@@ -203,7 +205,7 @@ ADMIN_EMAIL=manager@company.com
 python -m pytest
 ```
 
-Офлайн, без ключей: Gemini подменяется моком. Покрыто: диалог → `submit_lead` → сохранение, самокоррекция при невалидных аргументах, защита от дублей, ретраи, fallback в JSON, сбой одного канала, HTML-письмо и экранирование, обрезка истории.
+Офлайн, без ключей: LLM и SpeechKit подменяются моками. Покрыто: диалог → `submit_lead` → сохранение, самокоррекция при невалидных аргументах, защита от дублей, ретраи, fallback в JSON, сбой одного канала, HTML-письмо и экранирование, обрезка истории.
 
 ## 🔒 Безопасность
 

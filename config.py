@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,10 +15,12 @@ class Settings(BaseSettings):
 
     # Required
     telegram_bot_token: str
-    gemini_api_key: str
+    yandex_api_key: str
+    yandex_folder_id: str
 
-    # LLM
-    gemini_model: str = "gemini-3.5-flash"
+    # LLM (Yandex AI Studio, OpenAI-compatible API)
+    yandex_model: str = "deepseek-v4.1-flash"
+    yandex_api_mode: Literal["responses", "chat"] = "responses"
     history_limit: int = 15
     llm_max_retries: int = 3
 
@@ -39,7 +42,7 @@ class Settings(BaseSettings):
     admin_email: str | None = None
 
     # Limits
-    voice_max_seconds: int = 180
+    voice_max_seconds: int = 30  # SpeechKit sync API limit
     throttle_seconds: float = 0.7
 
     @field_validator(
